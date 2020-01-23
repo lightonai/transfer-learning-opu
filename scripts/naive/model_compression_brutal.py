@@ -130,8 +130,8 @@ def main(args):
                                                                                               dtype=args.model_dtype,
                                                                                               device=args.device)
 
-    print(args.model_name + '_' + args.model_options + " - train conv features time = {0:3.2f} s\tencoding = {1:1.5f} s"
-          .format(train_conv_time, train_encode_time))
+    print("{0} - train conv features time = {1:3.2f} s\tencoding = {2:1.5f} s"
+          .format(args.model_name, train_conv_time, train_encode_time))
 
     enc_test_features, test_labels, test_conv_time, test_encode_time = fast_conv_features(test_loader, model,
                                                                                           new_output_size,
@@ -139,12 +139,10 @@ def main(args):
                                                                                           dtype=args.model_dtype,
                                                                                           device=args.device)
 
-    print(args.model_name + '_' + args.model_options + " - test conv features time  = {0:3.2f} s\tencoding = {1:1.5f} s"
-          .format(test_conv_time, test_encode_time))
+    print("{0} - test conv features time  = {1:3.2f} s\tencoding = {2:3.2f} s"
+          .format(args.model_name, test_conv_time, test_encode_time))
 
     # Encode, get the random features and decode
-
-
 
     train_proj_time, train_random_features = get_random_features(enc_train_features, args.n_components)
     test_proj_time, test_random_features = get_random_features(enc_test_features, args.n_components)
@@ -154,6 +152,8 @@ def main(args):
     train_decode_time, dec_train_random_features = decoding(train_random_features, decode_type=None)
     test_decode_time, dec_test_random_features = decoding(test_random_features, decode_type=None)
 
+    print("Train projection time = {0:3.2f}\tTrain decode time = {1:3.2f}".format(train_proj_time, train_decode_time))
+    print("Test projection time = {0:3.2f}\tTest decode time = {1:3.2f}".format(test_proj_time, test_decode_time))
     torch.cuda.empty_cache()
 
     current_date = str(datetime.now())

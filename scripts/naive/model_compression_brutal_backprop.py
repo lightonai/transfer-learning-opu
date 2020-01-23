@@ -12,6 +12,8 @@ import torchvision.transforms as transforms
 
 import pandas as pd
 
+from tqdm import tqdm
+
 from tlopu.model_utils import pick_model, Reshape, cut_model, get_model_size
 from tlopu.backprop import train_model, evaluate_model
 from tlopu.dataset import CatsAndDogs
@@ -35,7 +37,7 @@ def parse_args():
     parser.add_argument('-model_options', help='Options for the removal of layers in the architecture',
                         choices=['full', 'noavgpool', 'norelu', 'norelu_maxpool'], default='full')
 
-    parser.add_argument("-lr", help='Learning rate. Defaults to 0.001', type=float, default=0.001)
+    parser.add_argument("-lr", help='Learning rate. Defaults to 0.00001', type=float, default=0.00001)
     parser.add_argument("-acc_toll", help='Tollerance threshold on the train accuracy in percentage. Defaults to 2',
                         type=int, default=2)
 
@@ -74,14 +76,13 @@ def main(args):
     print("train images = {}\ttest images = {}\n".format(len(train_loader.dataset), len(test_loader.dataset)))
 
     if args.save_path is not None:
-        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU),"backprop")
+        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU), "backprop")
 
         pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
 
-        final_data_columns = ['block', 'layer', 'conv features shape', 'optimizer', 'train epochs', 'train loss',
-                              'test loss',
-                              'test accuracy', 'training time', "test time", "model size-linear", "model size-tot",
-                              'date']
+        final_data_columns = ['block', 'layer', 'conv features shape', 'optimizer', 'epoch', 'train loss',
+                              'test loss', 'test accuracy', 'training time', "test time", "model size-linear",
+                              "model size-tot", 'date']
 
     model, output_size = pick_model(model_name=args.model_name, model_options=args.model_options, pretrained=True)
 
@@ -101,40 +102,45 @@ def main(args):
         print('Optimizer not recognized.')
 
     model.to(torch.device(args.device))
+    final_data = []
 
     # Training phase
-    torch.cuda.synchronize()
-    t0 = time()
+    for epoch in tqdm(range(args.epochs)):
+        torch.cuda.synchronize()
+        t0 = time()
 
-    model, loss_list, train_acc_list, stop_epoch = train_model(model, args.epochs, train_loader, criterion_backprop,
-                                                               optimizer, acc_toll=acc_toll, device=args.device)
+        model, epoch_loss, epoch_acc = train_model(model, train_loader, criterion_backprop, optimizer, device=args.device)
 
-    torch.cuda.synchronize()
-    training_time = time() - t0
-    print('Training time = ', training_time)
+        torch.cuda.synchronize()
+        training_time = time() - t0
 
-    # Test phase
-    torch.cuda.synchronize()
-    t0 = time()
+        # Test phase
+        torch.cuda.synchronize()
+        t0 = time()
 
-    test_loss, test_acc, inference_conv_time, inference_linear_time = evaluate_model(model, test_loader,
-                                                                                     criterion_backprop,
-                                                                                     optimizer, device=args.device)
+        test_loss, test_acc, inference_conv_time, inference_linear_time = evaluate_model(model, test_loader,
+                                                                                         criterion_backprop,
+                                                                                         optimizer, device=args.device)
 
-    torch.cuda.synchronize()
-    test_prop = time() - t0
-    print('Loss {:.4f} \t Test acc: {:.4f} \t Test RT = {:.4f}'.format(test_loss, test_acc, test_prop))
+        torch.cuda.synchronize()
+        test_time = time() - t0
 
-    # Save data
-    final_data = [args.block, args.layer, new_output_size, args.optimizer_name, stop_epoch, loss_list[-1], test_loss,
-                  test_acc, training_time, test_prop, model_size_linear, model_size_tot, datetime.now()]
+        print('Train Loss {:.4f}\tTrain acc: {:3.2f}\tTrain RT = {:3.2f}\tTest Loss {:.4f}\tTest acc: {:3.2f}\tTest RT = {:3.2f}'
+              .format(epoch_loss, epoch_acc, training_time, test_loss, test_acc, test_time))
+
+        # Save data
+        epoch_data = [args.block, args.layer, new_output_size, args.optimizer_name, epoch, epoch_loss, test_loss,
+                      test_acc, training_time, test_time, model_size_linear, model_size_tot, datetime.now()]
+
+        final_data.append(epoch_data)
 
     if args.save_path is not None:
         csv_name = "{}_{}_backprop_{}.{}.csv".format(args.model_name, args.model_options,
                                                      str(args.block).zfill(2), str(args.layer).zfill(2))
 
-        pd.DataFrame([final_data], columns=final_data_columns).to_csv(os.path.join(base_path, csv_name),
-                                                                      sep='\t', index=False)
+        pd.DataFrame(final_data, columns=final_data_columns).to_csv(os.path.join(base_path, csv_name),
+                                                                    sep='\t', index=False)
+        print("results saved in ", base_path)
 
     del model
     torch.cuda.empty_cache()
