@@ -9,7 +9,8 @@ def make_dataset(images_path, annotation_path):
         for line in file.readlines():
             image, class_idx, species, breed = line.rsplit()
 
-            item = (os.path.join(images_path, "{}.jpg".format(image)), int(class_idx))
+            # I subtract 1 to the class label because pytorch wants classes starting from 0.
+            item = (os.path.join(images_path, "{}.jpg".format(image)), int(class_idx)-1)
             samples.append(item)
             
     return samples
@@ -50,7 +51,7 @@ class CatsAndDogs(Dataset):
         self.targets = [s[1] for s in samples]
 
         self.loader = loader
-        self.classes = [i for i in range(1, 38)]
+        self.classes = [i for i in range(37)]
     
 
     def __len__(self):

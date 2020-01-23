@@ -30,6 +30,8 @@ def parse_args():
                              "Choose 'cpu' to use the CPU for all computations. Defaults to 'cuda:0'", type=str,
                         default='cuda:0')
     parser.add_argument("-num_workers", help="Number of workers. Defaults to 12", type=int, default=12)
+    parser.add_argument("-batch_size", help="Batch size. Defaults to 32", type=int, default=32)
+
     parser.add_argument('-model_options', help='Options for the removal of specific layers in the architecture.'
                                                'Defaults to full.',
                         choices=['full', 'noavgpool', 'norelu', 'norelu_maxpool'], type=str, default="full")
@@ -79,16 +81,14 @@ def parse_args():
 def main(args):
     print('model = {}\tmodel options = {}'.format(args.model_name, args.model_options))
 
-    batch_size = 32
-
     train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
     test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
 
     train_dataset = CatsAndDogs(args.dataset_path, mode="trainval", transform=train_transform)
     test_dataset = CatsAndDogs(args.dataset_path, mode="test", transform=test_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     print("train images = {}\ttest images = {}".format(len(train_loader.dataset), len(test_loader.dataset)))
 

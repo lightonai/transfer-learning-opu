@@ -7,27 +7,24 @@ from datetime import datetime
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
+import torchvision.transforms as transforms
 
 import pandas as pd
 
-from ph.utils.model_loading_utils import pick_model, Reshape
-from ph.utils.data_loading_utils import pick_dataset
-from ph.brutal_compression.brutal import cut_model
-from ph.utils.statistics import get_model_size
-from ph.utils.backprop import train_model, evaluate_model
-
+from tlopu.model_utils import pick_model, Reshape, cut_model, get_model_size
+from tlopu.backprop import train_model, evaluate_model
+from tlopu.dataset import CatsAndDogs
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Transfer learning - standard", formatter_class=RawTextHelpFormatter)
 
     parser.add_argument("model_name", help='Base model for TL.', type=str)
-    parser.add_argument("dataset_name", help='Dataset name.', type=str,
-                        choices=['STL10', 'monkeys', 'flowers', 'skin_cancer', "xray"])
     parser.add_argument("optimizer_name", help='Choice of the optimizer.', type=str, choices=['Adam', 'SGD'])
     parser.add_argument("OPU", help='OPU model. For file naming.', type=str, choices=['Zeus', 'Vulcain', "Saturn"])
 
     parser.add_argument("epochs", help='Number of training epochs.', type=int)
-
+    parser.add_argument("-num_workers", help="Number of workers. Defaults to 12", type=int, default=12)
     parser.add_argument("-batch_size", help="Batch size in the train and inference phase. Defaults to 32.",
                         type=int, default=32)
 
@@ -48,9 +45,8 @@ def parse_args():
                         type=int,
                         default=4)
 
-    parser.add_argument("-dataset_path",
-                        help='Path to the dataset folder (excluded). Defaults to /data/mldata/.', type=str,
-                        default='/data/mldata/')
+    parser.add_argument("-dataset_path", help='Path to the dataset folder (excluded).', type=str,
+                        default='/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset')
     parser.add_argument("-save_path",
                         help='Path to the save folder. If None, results will not be saved. Defaults to None.',
                         type=str, default=None)
@@ -66,13 +62,19 @@ def main(args):
 
     print('model = {}\tmodel options = {}\n'.format(args.model_name, args.model_options))
 
-    train_loader, test_loader = pick_dataset(args.dataset_path, args.dataset_name, args.batch_size)
-    print("Dataset = {}\ttrain images = {}\ttest images = {}\n"
-          .format(args.dataset_name, len(train_loader.dataset), len(test_loader.dataset)))
+    train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
+    test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
+
+    train_dataset = CatsAndDogs(args.dataset_path, mode="trainval", transform=train_transform)
+    test_dataset = CatsAndDogs(args.dataset_path, mode="test", transform=test_transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    print("train images = {}\ttest images = {}\n".format(len(train_loader.dataset), len(test_loader.dataset)))
 
     if args.save_path is not None:
-        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU), args.dataset_name,
-                                 "backprop")
+        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU),"backprop")
 
         pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
 
@@ -128,8 +130,8 @@ def main(args):
                   test_acc, training_time, test_prop, model_size_linear, model_size_tot, datetime.now()]
 
     if args.save_path is not None:
-        csv_name = "{}_{}_{}_backprop_{}.{}.csv".format(args.dataset_name, args.model_name, args.model_options,
-                                                        str(args.block).zfill(2), str(args.layer).zfill(2))
+        csv_name = "{}_{}_backprop_{}.{}.csv".format(args.model_name, args.model_options,
+                                                     str(args.block).zfill(2), str(args.layer).zfill(2))
 
         pd.DataFrame([final_data], columns=final_data_columns).to_csv(os.path.join(base_path, csv_name),
                                                                       sep='\t', index=False)
