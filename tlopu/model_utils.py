@@ -1,12 +1,13 @@
 import os
 import pathlib
-from warnings import warn
-
-import torch
 import itertools
 
-import torchvision.models as models
+import numpy as np
+
+import torch
 from torch.nn import Linear, Sequential
+import torchvision.models as models
+
 
 class Reshape(torch.nn.Module):
     """
@@ -95,9 +96,6 @@ def pick_model(model_name, model_options='full', pretrained=True, device='cpu', 
     elif model_name[:8] == "densenet":
         model = getattr(models, model_name)(pretrained=pretrained).features
 
-    else:
-        model = EfficientNet.from_pretrained(model_name)
-
     model.name = model_name
     output_size = get_output_size(model, input_shape, device="cpu")
 
@@ -151,6 +149,63 @@ def get_output_size(model, input_shape=(1, 3, 224, 224), device="cpu", dtype='fl
 
     return output_size
 
+def cut_model(model, block, layer, dtype="float32"):
+    """
+    Cuts the model to the specified (block, layer) pair. For reference:
+
+    VGG16: 30 blocks of 1 layer each;
+    ResNets: 4 blocks of 1 layer each, followed by 4 blocks of variable layer size,
+            followed by 1 block with 1 layer (AvgPool);
+    DenseNets: 4 blocks of 1 layer each, followed by Dense_Block -> Transition (x3) -> Dense_Block,
+                followed by 1 block with 1 layer (BatchNorm). Denseblocks have variable layer size,
+                while Transitions are considered as 1-layer objects.
+
+    Parameters
+    ----------
+    model: pytorch model,
+        model to cut.
+    block: int,
+        index of the last block to keep. For example, 0 is the first Conv2d.
+    layer: int,
+        last layer to keep in the last block. Will be ignored if the last block has just 1 layer.
+
+    Returns
+    -------
+    reduced_model: pytorch model,
+        model cut to the specified (block,layer) pair.
+    output_size: int,
+        size of the convolutional features in output to the model.
+
+    NOTE: pytorch names the denselayers from 1 to n, but they are indexed from 0 to n-1.
+        The code assumes that the layer indeces are in the interval [0,n-1].
+    """
+
+    single_layers = (torch.nn.Conv2d, torch.nn.ReLU, torch.nn.MaxPool2d, torch.nn.AvgPool2d, torch.nn.AdaptiveAvgPool2d,
+                     torch.nn.BatchNorm2d, torch.nn.Linear, models.densenet._Transition)
+
+    if model.name[0:12] == "efficientnet":
+        reduced_model = model
+        output_size = get_output_size(reduced_model, dtype=dtype)
+        return reduced_model, output_size
+
+    reduced_model = model[:block + 1]
+    reduced_model.name = model.name
+
+
+    if model.name[:8] == 'densenet':
+        if isinstance(reduced_model[-1], models.densenet._DenseBlock):
+            del reduced_model[-1][layer + 1:]
+
+    else:
+        # This is for ResNets
+        if isinstance(reduced_model[-1], single_layers) is False:
+            del reduced_model[-1][layer + 1:]
+
+    output_size = get_output_size(reduced_model, dtype=dtype)
+
+    return reduced_model, output_size
+
+
 
 def generate_iterator(model, first_block, last_block):
     """
@@ -196,6 +251,52 @@ def generate_iterator(model, first_block, last_block):
 
     full_iterator = itertools.chain.from_iterable(full_iterator)
     return full_iterator
+
+def get_model_size(model):
+    """
+    Returns the model size and the number of parameters of the convolutional, batchnorm and linear layers.
+
+    Parameters
+    ----------
+
+    model: torch model,
+        pytorch model.
+
+    Returns
+    -------
+    model_size = float,
+        size of the model in MB.
+    total_weights = int,
+        number of weights in the model.
+
+    NOTE: the number of bits is obtained from the last two characters of the dtype (ex: 'float32' -> 32 bits).
+        As such, it will not work for bits lower than 10 (ex: 'int8' -> t8)
+    """
+
+    tot_conv_weights, tot_batchnorm_weights, tot_linear_weights = 0, 0, 0
+    tot_conv_size, tot_batchnorm_size, tot_linear_size = 0., 0., 0.
+
+    for index, layer in model.named_modules():
+
+        if isinstance(layer, torch.nn.Conv2d):
+            layer_weights = np.prod(layer.weight.data.shape[:])
+            tot_conv_weights += layer_weights
+            tot_conv_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+
+        elif isinstance(layer, torch.nn.BatchNorm2d):
+            layer_weights = np.prod(layer.weight.data.shape[:])
+            tot_batchnorm_weights += layer_weights
+            tot_batchnorm_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+
+        elif isinstance(layer, torch.nn.Linear):
+            layer_weights = np.prod(layer.weight.data.shape[:])
+            tot_linear_weights += layer_weights
+            tot_linear_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+
+    total_weights = tot_conv_weights + tot_batchnorm_weights + tot_linear_weights
+    model_size = tot_conv_size + tot_batchnorm_size + tot_linear_size
+
+    return model_size, total_weights, tot_linear_size
 
 
 def save_model(model, batch_size, savepath, channels=3):
