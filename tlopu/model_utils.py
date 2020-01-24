@@ -149,6 +149,7 @@ def get_output_size(model, input_shape=(1, 3, 224, 224), device="cpu", dtype='fl
 
     return output_size
 
+
 def cut_model(model, block, layer, dtype="float32"):
     """
     Cuts the model to the specified (block, layer) pair. For reference:
@@ -183,18 +184,15 @@ def cut_model(model, block, layer, dtype="float32"):
     single_layers = (torch.nn.Conv2d, torch.nn.ReLU, torch.nn.MaxPool2d, torch.nn.AvgPool2d, torch.nn.AdaptiveAvgPool2d,
                      torch.nn.BatchNorm2d, torch.nn.Linear, models.densenet._Transition)
 
-    if model.name[0:12] == "efficientnet":
-        reduced_model = model
-        output_size = get_output_size(reduced_model, dtype=dtype)
-        return reduced_model, output_size
-
     reduced_model = model[:block + 1]
     reduced_model.name = model.name
 
-
     if model.name[:8] == 'densenet':
         if isinstance(reduced_model[-1], models.densenet._DenseBlock):
-            del reduced_model[-1][layer + 1:]
+            # print(reduced_model[-1])
+            if 0 < layer <= len(reduced_model[-1]):
+                for i in range(layer + 1, len(reduced_model[-1]) + 1):
+                    del reduced_model[-1]["denselayer{}".format(i)]
 
     else:
         # This is for ResNets
@@ -204,7 +202,6 @@ def cut_model(model, block, layer, dtype="float32"):
     output_size = get_output_size(reduced_model, dtype=dtype)
 
     return reduced_model, output_size
-
 
 
 def generate_iterator(model, first_block, last_block):
