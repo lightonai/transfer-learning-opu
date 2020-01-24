@@ -196,8 +196,8 @@ def main(args):
     train_decode_time, dec_train_random_features = decoding(train_random_features, decode_type=None)
     test_decode_time, dec_test_random_features = decoding(test_random_features, decode_type=None)
 
-    print("Train projection time = {0:3.2f}\tTrain decode time = {1:3.2f}".format(train_proj_time, train_decode_time))
-    print("Test projection time = {0:3.2f}\tTest decode time = {1:3.2f}".format(test_proj_time, test_decode_time))
+    print("Train projection time = {0:3.2f} s\tTrain decode time = {1:3.2f} s".format(train_proj_time, train_decode_time))
+    print("Test projection time = {0:3.2f} s\tTest decode time = {1:3.2f} s".format(test_proj_time, test_decode_time))
     torch.cuda.empty_cache()
 
     current_date = str(datetime.now())
