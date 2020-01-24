@@ -8,6 +8,7 @@ from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
+from torchvision.datasets import ImageFolder
 
 import pandas as pd
 import numpy as np
@@ -15,7 +16,7 @@ from sklearn.linear_model import RidgeClassifier
 
 from tlopu.model_utils import pick_model, cut_model, get_model_size
 from tlopu.features import fast_conv_features, decoding, get_random_features, dummy_predict_GPU
-from tlopu.dataset import CatsAndDogs
+from tlopu.dataset import CatsAndDogs, CUB_200, Animals10
 
 
 def parse_args():
@@ -78,17 +79,57 @@ def parse_args():
     return args
 
 
+def get_loaders(dataset_name, batch_size=32, num_workers=12, mean=None, std=None):
+    transform_list = [transforms.Resize((224, 224)), transforms.ToTensor()]
+    if mean is not None:
+        transform_list.append(transforms.Normalize(mean=mean, std=std))
+    data_transform = transforms.Compose(transform_list)
+
+    if dataset_name == "cats_dogs":
+        dataset_path = "/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset"
+
+        train_dataset = CatsAndDogs(dataset_path, mode="trainval", transform=data_transform)
+        test_dataset = CatsAndDogs(dataset_path, mode="test", transform=data_transform)
+
+    elif dataset_name == "CUB_200":
+        dataset_path = "/data/home/luca/datasets/CUB_200_2011/"
+
+        train_dataset = CUB_200(dataset_path, mode="train", transform=data_transform)
+        test_dataset = CUB_200(dataset_path, mode="test", transform=data_transform)
+
+
+    elif dataset_name == "animals10":
+        path = "/data/home/luca/datasets/animals10/raw-img/"
+        train_dataset = Animals10(path, test_ratio=20, mode="train", transform=data_transform)
+        test_dataset = Animals10(path, test_ratio=20, mode="test", transform=data_transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+
+    return train_loader, test_loader
+
+
+def get_mean_std(train_loader):
+    mean, std = torch.zeros(3), torch.zeros(3)
+
+    for batch_id, (image, target) in enumerate(train_loader):
+        mean += torch.mean(image, dim=(0, 2, 3))
+        std += torch.std(image, dim=(0, 2, 3))
+
+    mean = mean / len(train_loader)
+    std = std / len(train_loader)
+
+    return mean, std
+
 def main(args):
+
     print('model = {}\tmodel options = {}'.format(args.model_name, args.model_options))
 
-    train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
-    test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
-
-    train_dataset = CatsAndDogs(args.dataset_path, mode="trainval", transform=train_transform)
-    test_dataset = CatsAndDogs(args.dataset_path, mode="test", transform=test_transform)
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers)
+    print("Computing dataset mean...")
+    mean, std = get_mean_std(train_loader)
+    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers,
+                                            mean=mean, std=std)
 
     print("train images = {}\ttest images = {}".format(len(train_loader.dataset), len(test_loader.dataset)))
 
@@ -124,6 +165,9 @@ def main(args):
 
     model.to(torch.device(args.device))
 
+    args.n_components = new_output_size // args.n_components
+    print("Random projection from {} to {}".format(new_output_size, args.n_components))
+
     enc_train_features, train_labels, train_conv_time, train_encode_time = fast_conv_features(train_loader, model,
                                                                                               new_output_size,
                                                                                               encode_type=args.encode_type,
@@ -139,7 +183,7 @@ def main(args):
                                                                                           dtype=args.model_dtype,
                                                                                           device=args.device)
 
-    print("{0} - test conv features time  = {1:3.2f} s\tencoding = {2:3.2f} s"
+    print("{0} - test conv features time  = {1:3.2f} s\tencoding = {2:1.5f} s"
           .format(args.model_name, test_conv_time, test_encode_time))
 
     # Encode, get the random features and decode
