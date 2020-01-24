@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-from torchvision.datasets import ImageFolder
 
 import pandas as pd
 
@@ -38,18 +37,15 @@ def parse_args():
     parser.add_argument('-model_options', help='Options for the removal of layers in the architecture',
                         choices=['full', 'noavgpool', 'norelu', 'norelu_maxpool'], default='full')
 
-    parser.add_argument("-lr", help='Learning rate. Defaults to 0.00001', type=float, default=0.00001)
-    parser.add_argument("-acc_toll", help='Tollerance threshold on the train accuracy in percentage. Defaults to 2',
-                        type=int, default=2)
+    parser.add_argument("-lr", help='Learning rate. Defaults to 0.000001', type=float, default=0.000001)
 
     parser.add_argument("-block", help='Index of the last block of the model. Defaults to 7.', type=int,
                         default=7)
     parser.add_argument("-layer", help='Index of the last layer of the last block of the model. Defaults to 4.',
-                        type=int,
-                        default=4)
+                        type=int, default=4)
 
     parser.add_argument("-dataset_path", help='Path to the dataset folder (excluded).', type=str,
-                        default='/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset')
+                        default='/data/home/luca/datasets/')
     parser.add_argument("-save_path",
                         help='Path to the save folder. If None, results will not be saved. Defaults to None.',
                         type=str, default=None)
@@ -59,31 +55,49 @@ def parse_args():
     return args
 
 
-def get_loaders(dataset_name, batch_size=32, num_workers=12, mean=None, std=None):
+def get_loaders(dataset_name, dataset_path, batch_size=32, num_workers=12, mean=None, std=None):
+    """
+    Function to load the train/test loaders.
+
+    Parameters
+    ----------
+    dataset_name: str, name of the dataset TODO: eliminate once we are ok with the dataset to use.
+    dataset_path: str, dataset path.
+
+    batch_size: int, batch size.
+    num_workers: int, number of workers.
+    mean:None or torch.Tensor, mean per channel
+    std:None or torch.Tensor, std per channel
+
+    Returns
+    -------
+    train_loader: Pytorch dataloader, dataloader for the train set.
+    test_loader: Pytorch dataloader, dataloader for the test set.
+    """
+
+
     transform_list = [transforms.Resize((224, 224)), transforms.ToTensor()]
     if mean is not None:
         transform_list.append(transforms.Normalize(mean=mean, std=std))
     data_transform = transforms.Compose(transform_list)
 
     if dataset_name == "cats_dogs":
-        dataset_path = "/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset"
+        dataset_path = os.path.join(dataset_path, "cats-and-dogs-breeds-classification-oxford-dataset")
 
         train_dataset = CatsAndDogs(dataset_path, mode="trainval", transform=data_transform)
         test_dataset = CatsAndDogs(dataset_path, mode="test", transform=data_transform)
 
     elif dataset_name == "CUB_200":
-        dataset_path = "/data/home/luca/datasets/CUB_200_2011/"
+        dataset_path = os.path.join(dataset_path, "CUB_200_2011")
 
         train_dataset = CUB_200(dataset_path, mode="train", transform=data_transform)
         test_dataset = CUB_200(dataset_path, mode="test", transform=data_transform)
 
-
-
     elif dataset_name == "animals10":
+        dataset_path = os.path.join(dataset_path, "animals10/raw-img/")
 
-        path = "/data/home/luca/datasets/animals10/raw-img/"
-        train_dataset = Animals10(path, test_ratio=20, mode="train", transform=data_transform)
-        test_dataset = Animals10(path, test_ratio=20, mode="test", transform=data_transform)
+        train_dataset = Animals10(dataset_path, test_ratio=20, mode="train", transform=data_transform)
+        test_dataset = Animals10(dataset_path, test_ratio=20, mode="test", transform=data_transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -92,6 +106,19 @@ def get_loaders(dataset_name, batch_size=32, num_workers=12, mean=None, std=None
 
 
 def get_mean_std(train_loader):
+    """
+    Computes the mean and std per channel on the train dataset.
+
+    Parameters
+    ----------
+    train_loader: Pytorch dataloader, dataloader for the train set
+
+    Returns
+    -------
+    mean: torch.Tensor, mean per channel
+    std: torch.Tensor, std per channel
+    """
+
     mean, std = torch.zeros(3), torch.zeros(3)
 
     for batch_id, (image, target) in enumerate(train_loader):
@@ -103,28 +130,48 @@ def get_mean_std(train_loader):
 
     return mean, std
 
+def save_data(args, final_data):
+    """
+    Helper fuction to save the relevant simulation data in the correct folder.
+
+    Parameters
+    ----------
+    args: argparse arguments. Used to ensure that the folder structure is unique for each simulation.
+    final_data: list, contains the relevant simulation data.
+
+    Returns
+    -------
+
+    """
+
+    base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU), "backprop")
+
+    pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
+
+    final_data_columns = ['block', 'layer', 'conv features shape', 'optimizer', 'epoch', 'train loss',
+                          'test loss', 'test accuracy', 'training time', "test time", "model size-linear",
+                          "model size-tot", 'date']
+    csv_name = "{}_{}_backprop_{}.{}.csv".format(args.model_name, args.model_options,
+                                                 str(args.block).zfill(2), str(args.layer).zfill(2))
+
+    pd.DataFrame(final_data, columns=final_data_columns).to_csv(os.path.join(base_path, csv_name),
+                                                                sep='\t', index=False)
+
+    return
+
 def main(args):
-    acc_toll = args.acc_toll / 100
     criterion_backprop = nn.CrossEntropyLoss(reduction='sum')
 
     print('model = {}\tmodel options = {}\n'.format(args.model_name, args.model_options))
 
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers)
+    train_loader, test_loader = get_loaders("animals10", args.dataset_path, batch_size=args.batch_size,
+                                            num_workers=args.num_workers)
     print("Computing dataset mean...")
     mean, std = get_mean_std(train_loader)
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers,
-                                            mean=mean, std=std)
+    train_loader, test_loader = get_loaders("animals10", args.dataset_path, batch_size=args.batch_size,
+                                            num_workers=args.num_workers, mean=mean, std=std)
 
     print("train images = {}\ttest images = {}\n".format(len(train_loader.dataset), len(test_loader.dataset)))
-
-    if args.save_path is not None:
-        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU), "backprop")
-
-        pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
-
-        final_data_columns = ['block', 'layer', 'conv features shape', 'optimizer', 'epoch', 'train loss',
-                              'test loss', 'test accuracy', 'training time', "test time", "model size-linear",
-                              "model size-tot", 'date']
 
     model, output_size = pick_model(model_name=args.model_name, model_options=args.model_options, pretrained=True)
 
@@ -146,8 +193,8 @@ def main(args):
     model.to(torch.device(args.device))
     final_data = []
 
-    # Training phase
     for epoch in tqdm(range(args.epochs)):
+        # Training phase
         torch.cuda.synchronize()
         t0 = time()
 
@@ -176,17 +223,12 @@ def main(args):
 
         final_data.append(epoch_data)
 
-    if args.save_path is not None:
-        csv_name = "{}_{}_backprop_{}.{}.csv".format(args.model_name, args.model_options,
-                                                     str(args.block).zfill(2), str(args.layer).zfill(2))
-
-        pd.DataFrame(final_data, columns=final_data_columns).to_csv(os.path.join(base_path, csv_name),
-                                                                    sep='\t', index=False)
-        print("results saved in ", base_path)
+        if args.save_path is not None:
+            save_data(args, final_data)
 
     del model
     torch.cuda.empty_cache()
-
+    return
 
 if __name__ == '__main__':
     args = parse_args()
