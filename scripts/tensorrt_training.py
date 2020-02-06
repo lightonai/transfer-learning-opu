@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import argparse
 from argparse import RawTextHelpFormatter
 from time import time
@@ -51,9 +52,9 @@ def parse_args():
     parser.add_argument("-encode_type",
                         help="Type of encoding. 'float32'=standard float32 | 'abs_th'= 1bit float32-like | "
                              "'plain_th'=Threshold encoding",
-                        type=str, choices=['float32', 'abs_th', 'plain_th'], default='plain_th')
+                        type=str, choices=['float32', 'abs_th', 'plain_th'], default='float32')
     parser.add_argument("-encode_thr",
-                        help="Threshold for the 'abs_th' and 'plain_th' encoding. Defaults to 0.", type=int, default=0)
+                        help="Threshold for the 'abs_th' and 'plain_th' encoding. Defaults to 2.", type=int, default=2)
 
     parser.add_argument("-decode_type", help='Type of decoding. Defaults to mixing', type=str,
                         choices=['none', 'mixing'],
@@ -255,7 +256,8 @@ def main(args):
 
         total_inference_time = test_conv_time + test_encode_time + test_proj_time + test_decode_time + predict_time
 
-        ridge_size = np.prod(clf.coef_.shape) * int(str(args.dtype_train)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+        n_bits = int(re.findall("\d+", args.dtype_train)[0])
+        ridge_size = np.prod(clf.coef_.shape) * n_bits / (8 * 2 ** 10 * 2 ** 10)
 
         train_data = [args.n_components, args.block, args.layer, args.dtype_train, train_conv_time_full,
                       train_conv_time, output_size, train_encode_time, train_proj_time, train_decode_time, alpha,
