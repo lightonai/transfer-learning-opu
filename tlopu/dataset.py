@@ -1,7 +1,13 @@
 import os
 import glob
+from random import shuffle
 
+import numpy as np
+
+import torch
 from torch.utils.data.dataset import Dataset
+from torch.utils.data import DataLoader, SubsetRandomSampler
+
 from torchvision.datasets.folder import default_loader
 
 
@@ -226,3 +232,42 @@ class Animals10(Dataset):
             target = self.target_transform(target)
 
         return sample, target
+
+def get_calibration_loader(loader, cal_batch_size, n_calibration_batches):
+    """
+    Builds a calibration DataLoader object starting from a Pytorch Dataloader.
+    Useful if the calibration images have to be extracted from the training set.
+
+    The calibration loader will inherit the number of workers and transforms of the input loader.
+    As a sampler, it uses the SequentialSampler, because I want to load the images in the
+    same order. This can be changed according to the application.
+    I also drop the last batch to avoid issues with TensorRT.
+
+
+    Parameters
+    ----------
+    loader: Pytorch DataLoader,
+        dataloader object from which to extract the calibration loader.
+    cal_batch_size: int,
+        calibrator batch size.
+    n_calibration_batches: int,
+        number of calibration batches.
+
+    Returns
+    -------
+    calibrator_loader: Pytorch Dataloader,
+        loader containing the calibration images.
+
+    """
+    n_calibration_images = n_calibration_batches * cal_batch_size
+    print("use {} batches of size {} for a total of {} calibration images".format(n_calibration_batches, cal_batch_size,
+                                                                                  n_calibration_images))
+
+    mask = [1 if i < n_calibration_images else 0 for i in range(len(loader.dataset))]
+    shuffle(mask)
+    mask = torch.Tensor(mask)
+
+    calibrator_loader = DataLoader(loader.dataset, batch_size=cal_batch_size,
+                                   sampler=SubsetRandomSampler(np.where(mask)[0]),
+                                   num_workers=loader.num_workers, drop_last=True)
+    return calibrator_loader
