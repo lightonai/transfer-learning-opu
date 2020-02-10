@@ -190,9 +190,11 @@ def cut_model(model, block, layer, dtype="float32"):
     if model.name[:8] == 'densenet':
         if isinstance(reduced_model[-1], models.densenet._DenseBlock):
             # print(reduced_model[-1])
-            if 0 < layer <= len(reduced_model[-1]):
-                for i in range(layer + 1, len(reduced_model[-1]) + 1):
-                    del reduced_model[-1]["denselayer{}".format(i)]
+            n_denselayers = len(list(reduced_model[-1].children()))
+            if 0 < layer <= n_denselayers:
+                for i in range(layer + 1, n_denselayers + 1):
+                    delattr(reduced_model[-1], "denselayer{}".format(i))
+
 
     else:
         # This is for ResNets
