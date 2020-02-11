@@ -84,6 +84,10 @@ def parse_args():
 
     parser.add_argument("-dataset_path", help='Path to the dataset folder (excluded).', type=str,
                         default='/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset')
+    parser.add_argument("-features_path",
+                        help='Path to the convolutional features folder. If None, the code computes them from scratch.'
+                             'The code expects a structure of the form load_conv_path/model_name_block.layer/dataset/.'
+                             'Defaults to None.', type=str, default=None)
     parser.add_argument("-onnx_path",
                         help='Path to the onnx folder where the model will be saved. '
                              'Defaults to /data/home/luca/quantization_trt/models/.',
@@ -183,38 +187,51 @@ def main(args):
         args.n_components = output_size // args.n_components
         print("Random projection from {} to {}".format(output_size, args.n_components))
 
-    onnx_path = os.path.join(args.onnx_path, args.model_name + ".onnx")
-    save_model(model, args.batch_size, savepath=onnx_path)
+    if args.features_path is not None:
+        path = os.path.join(args.features_path,  "{}_{}.{}".format(args.model_name, args.block, args.layer), "animals10")
+        conv_features = np.load(os.path.join(path, "features.npz"))
+        labels = np.load(os.path.join(path, "labels.npz"))
 
-    if args.dtype_train == 'int8' or args.dtype_inf == 'int8':
-        print("Generating calibration loader...")
-        calibrator_loader = get_calibration_loader(train_loader, cal_batch_size=args.cal_batch_size,
-                                                   n_calibration_batches=args.n_cal_batches)
+        train_conv_features, test_conv_features = conv_features['train'], conv_features['test']
+        train_labels, test_labels = labels['train'], labels['test']
 
-        cache_path = os.path.join(args.onnx_path, "cache")
-        pathlib.Path(cache_path).mkdir(parents=True, exist_ok=True)
-        calib = calibrator(calibrator_loader,
-                           os.path.join(cache_path, "{}_{}_{}.cache".format(args.model_name, args.model_options,
-                                                                            args.n_cal_batches)))
+        data = pd.read_csv(os.path.join(path, "data.csv"), sep='\t')
+        train_conv_time, test_conv_time = data["conv f-train"][0], data["conv f-test"][0]
+        train_conv_time_full, test_conv_time_full = data["conv f-train-full"][0], data["conv f-test-full"][0]
+
     else:
-        calib = None
+        onnx_path = os.path.join(args.onnx_path, args.model_name + ".onnx")
+        save_model(model, args.batch_size, savepath=onnx_path)
 
-    with build_engine_onnx(onnx_path, args.batch_size, max_workspace_size=4, dtype=args.dtype_train,
-                           calibrator=calib) as engine:
+        if args.dtype_train == 'int8' or args.dtype_inf == 'int8':
+            print("Generating calibration loader...")
+            calibrator_loader = get_calibration_loader(train_loader, cal_batch_size=args.cal_batch_size,
+                                                       n_calibration_batches=args.n_cal_batches)
 
-        train_conv_features, train_labels, train_conv_time_full, train_conv_time = trt_conv_features(train_loader,
+            cache_path = os.path.join(args.onnx_path, "cache")
+            pathlib.Path(cache_path).mkdir(parents=True, exist_ok=True)
+            calib = calibrator(calibrator_loader,
+                               os.path.join(cache_path, "{}_{}_{}.cache".format(args.model_name, args.model_options,
+                                                                                args.n_cal_batches)))
+        else:
+            calib = None
+
+        with build_engine_onnx(onnx_path, args.batch_size, max_workspace_size=4, dtype=args.dtype_train,
+                               calibrator=calib) as engine:
+
+            train_conv_features, train_labels, train_conv_time_full, train_conv_time = trt_conv_features(train_loader,
+                                                                                                         engine,
+                                                                                                         output_size)
+            print("\nTraining - Total time in {0} : {1:2.3f} s (no data loading {2:2.3f} s)\n".format(args.dtype_train,
+                                                                                                      train_conv_time_full,
+                                                                                                      train_conv_time))
+
+            test_conv_features, test_labels, test_conv_time_full, test_conv_time = trt_conv_features(test_loader,
                                                                                                      engine,
                                                                                                      output_size)
-        print("\nTraining - Total time in {0} : {1:2.3f} s (no data loading {2:2.3f} s)\n".format(args.dtype_train,
-                                                                                                  train_conv_time_full,
-                                                                                                  train_conv_time))
-
-        test_conv_features, test_labels, test_conv_time_full, test_conv_time = trt_conv_features(test_loader,
-                                                                                                 engine,
-                                                                                                 output_size)
-        print("\nTest - Total time in {0} : {1:2.3f} s (no data loading {2:2.3f} s)\n".format(args.dtype_inf,
-                                                                                              test_conv_time_full,
-                                                                                              test_conv_time))
+            print("\nTest - Total time in {0} : {1:2.3f} s (no data loading {2:2.3f} s)\n".format(args.dtype_inf,
+                                                                                                  test_conv_time_full,
+                                                                                                  test_conv_time))
 
     # Encode, get the random features and decode
     train_encode_time, test_encode_time, enc_train_features, enc_test_features = encoding(train_conv_features,
