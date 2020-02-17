@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from tlopu.model_utils import pick_model, Reshape, cut_model, get_model_size
 from tlopu.backprop import train_model, evaluate_model
-from tlopu.dataset import CatsAndDogs, CUB_200, Animals10
+from tlopu.dataset import Animals10
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Transfer learning - standard", formatter_class=RawTextHelpFormatter)
@@ -45,7 +45,7 @@ def parse_args():
                         type=int, default=4)
 
     parser.add_argument("-dataset_path", help='Path to the dataset folder (excluded).', type=str,
-                        default='/data/home/luca/datasets/')
+                        default='../datasets/')
     parser.add_argument("-save_path",
                         help='Path to the save folder. If None, results will not be saved. Defaults to None.',
                         type=str, default=None)
@@ -55,13 +55,12 @@ def parse_args():
     return args
 
 
-def get_loaders(dataset_name, dataset_path, batch_size=32, num_workers=12, mean=None, std=None):
+def get_loaders(dataset_path, batch_size=32, num_workers=12, mean=None, std=None):
     """
     Function to load the train/test loaders.
 
     Parameters
     ----------
-    dataset_name: str, name of the dataset TODO: eliminate once we are ok with the dataset to use.
     dataset_path: str, dataset path.
 
     batch_size: int, batch size.
@@ -81,23 +80,10 @@ def get_loaders(dataset_name, dataset_path, batch_size=32, num_workers=12, mean=
         transform_list.append(transforms.Normalize(mean=mean, std=std))
     data_transform = transforms.Compose(transform_list)
 
-    if dataset_name == "cats_dogs":
-        dataset_path = os.path.join(dataset_path, "cats-and-dogs-breeds-classification-oxford-dataset")
+    dataset_path = os.path.join(dataset_path, "animals10/raw-img/")
 
-        train_dataset = CatsAndDogs(dataset_path, mode="trainval", transform=data_transform)
-        test_dataset = CatsAndDogs(dataset_path, mode="test", transform=data_transform)
-
-    elif dataset_name == "CUB_200":
-        dataset_path = os.path.join(dataset_path, "CUB_200_2011")
-
-        train_dataset = CUB_200(dataset_path, mode="train", transform=data_transform)
-        test_dataset = CUB_200(dataset_path, mode="test", transform=data_transform)
-
-    elif dataset_name == "animals10":
-        dataset_path = os.path.join(dataset_path, "animals10/raw-img/")
-
-        train_dataset = Animals10(dataset_path, test_ratio=20, mode="train", transform=data_transform)
-        test_dataset = Animals10(dataset_path, test_ratio=20, mode="test", transform=data_transform)
+    train_dataset = Animals10(dataset_path, test_ratio=20, mode="train", transform=data_transform)
+    test_dataset = Animals10(dataset_path, test_ratio=20, mode="test", transform=data_transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -132,7 +118,7 @@ def get_mean_std(train_loader):
 
 def save_data(args, final_data):
     """
-    Helper fuction to save the relevant simulation data in the correct folder.
+    Helper function to save the relevant simulation data in the correct folder.
 
     Parameters
     ----------
@@ -164,11 +150,10 @@ def main(args):
 
     print('model = {}\tmodel options = {}\n'.format(args.model_name, args.model_options))
 
-    train_loader, test_loader = get_loaders("animals10", args.dataset_path, batch_size=args.batch_size,
-                                            num_workers=args.num_workers)
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size, num_workers=args.num_workers)
     print("Computing dataset mean...")
     mean, std = get_mean_std(train_loader)
-    train_loader, test_loader = get_loaders("animals10", args.dataset_path, batch_size=args.batch_size,
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size,
                                             num_workers=args.num_workers, mean=mean, std=std)
 
     print("train images = {}\ttest images = {}\n".format(len(train_loader.dataset), len(test_loader.dataset)))

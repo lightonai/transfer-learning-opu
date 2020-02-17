@@ -17,7 +17,7 @@ from sklearn.linear_model import RidgeClassifier
 from tlopu.model_utils import pick_model, cut_model, get_model_size, save_model
 from tlopu.features import encoding, decoding, get_random_features, dummy_predict_GPU
 from tlopu.trt_utils import build_engine_onnx, calibrator, trt_conv_features
-from tlopu.dataset import CatsAndDogs, CUB_200, Animals10, get_calibration_loader
+from tlopu.dataset import Animals10, get_calibration_loader
 
 
 def parse_args():
@@ -83,15 +83,13 @@ def parse_args():
                         default=5)
 
     parser.add_argument("-dataset_path", help='Path to the dataset folder (excluded).', type=str,
-                        default='/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset')
+                        default='../datasets/')
     parser.add_argument("-features_path",
                         help='Path to the convolutional features folder. If None, the code computes them from scratch.'
                              'The code expects a structure of the form load_conv_path/model_name_block.layer/dataset/.'
                              'Defaults to None.', type=str, default=None)
-    parser.add_argument("-onnx_path",
-                        help='Path to the onnx folder where the model will be saved. '
-                             'Defaults to /data/home/luca/quantization_trt/models/.',
-                        type=str, default='/data/home/luca/quantization_trt/models/')
+    parser.add_argument("-onnx_path", help='Path to the onnx folder where the model will be saved. ', type=str,
+                        default='../models/')
 
     parser.add_argument("-save_path",
                         help='Path to the save folder. If None, results will not be saved. Defaults to None.',
@@ -102,29 +100,34 @@ def parse_args():
     return args
 
 
-def get_loaders(dataset_name, batch_size=32, num_workers=12, mean=None, std=None):
+def get_loaders(dataset_path, batch_size=32, num_workers=12, mean=None, std=None):
+    """
+    Function to load the train/test loaders.
+
+    Parameters
+    ----------
+    dataset_path: str, dataset path.
+
+    batch_size: int, batch size.
+    num_workers: int, number of workers.
+    mean:None or torch.Tensor, mean per channel
+    std:None or torch.Tensor, std per channel
+
+    Returns
+    -------
+    train_loader: Pytorch dataloader, dataloader for the train set.
+    test_loader: Pytorch dataloader, dataloader for the test set.
+    """
+
     transform_list = [transforms.Resize((224, 224)), transforms.ToTensor()]
     if mean is not None:
         transform_list.append(transforms.Normalize(mean=mean, std=std))
     data_transform = transforms.Compose(transform_list)
 
-    if dataset_name == "cats_dogs":
-        dataset_path = "/data/home/luca/datasets/cats-and-dogs-breeds-classification-oxford-dataset"
+    dataset_path = os.path.join(dataset_path, "animals10/raw-img/")
 
-        train_dataset = CatsAndDogs(dataset_path, mode="trainval", transform=data_transform)
-        test_dataset = CatsAndDogs(dataset_path, mode="test", transform=data_transform)
-
-    elif dataset_name == "CUB_200":
-        dataset_path = "/data/home/luca/datasets/CUB_200_2011/"
-
-        train_dataset = CUB_200(dataset_path, mode="train", transform=data_transform)
-        test_dataset = CUB_200(dataset_path, mode="test", transform=data_transform)
-
-
-    elif dataset_name == "animals10":
-        path = "/data/home/luca/datasets/animals10/raw-img/"
-        train_dataset = Animals10(path, test_ratio=20, mode="train", transform=data_transform)
-        test_dataset = Animals10(path, test_ratio=20, mode="test", transform=data_transform)
+    train_dataset = Animals10(dataset_path, test_ratio=20, mode="train", transform=data_transform)
+    test_dataset = Animals10(dataset_path, test_ratio=20, mode="test", transform=data_transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -133,6 +136,18 @@ def get_loaders(dataset_name, batch_size=32, num_workers=12, mean=None, std=None
 
 
 def get_mean_std(train_loader):
+    """
+    Computes the mean and std per channel on the train dataset.
+
+    Parameters
+    ----------
+    train_loader: Pytorch dataloader, dataloader for the train set
+
+    Returns
+    -------
+    mean: torch.Tensor, mean per channel
+    std: torch.Tensor, std per channel
+    """
     mean, std = torch.zeros(3), torch.zeros(3)
 
     for batch_id, (image, target) in enumerate(train_loader):
@@ -148,10 +163,10 @@ def get_mean_std(train_loader):
 def main(args):
     print('model = {}\tmodel options = {}'.format(args.model_name, args.model_options))
 
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers)
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size, num_workers=args.num_workers)
     print("Computing dataset mean...")
     mean, std = get_mean_std(train_loader)
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers,
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size, num_workers=args.num_workers,
                                             mean=mean, std=std)
 
     print("train images = {}\ttest images = {}".format(len(train_loader.dataset), len(test_loader.dataset)))
