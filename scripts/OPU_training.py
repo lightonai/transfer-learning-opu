@@ -141,10 +141,10 @@ def main(args):
 
     print('model = {}\tmodel options = {}'.format(args.model_name, args.model_options))
 
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers)
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size, num_workers=args.num_workers)
     print("Computing dataset mean...")
     mean, std = get_mean_std(train_loader)
-    train_loader, test_loader = get_loaders("animals10", batch_size=args.batch_size, num_workers=args.num_workers,
+    train_loader, test_loader = get_loaders(args.dataset_path, batch_size=args.batch_size, num_workers=args.num_workers,
                                             mean=mean, std=std)
 
     print("train images = {}\ttest images = {}".format(len(train_loader.dataset), len(test_loader.dataset)))

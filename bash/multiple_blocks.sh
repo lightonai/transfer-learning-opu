@@ -14,7 +14,7 @@ main_bp_path=../scripts/backprop_training.py
 
 save_path=../data/
 txt_path="$save_path/dummy/"
-dataset_path=../datasets/animals10/
+dataset_path=../datasets/
 
 batch_size=32
 OPU="Saturn"
@@ -22,8 +22,8 @@ OPU="Saturn"
 declare -a models=("densenet169")
 model_options="full"
 
-first_block=30
-last_block=30       #The highest number of blocks is 36 from vgg19.
+first_block=4
+last_block=11
 
 # ============= OPU parameters =============
 
