@@ -245,7 +245,7 @@ def generate_iterator(model, first_block, last_block):
         if isinstance(final_block, single_blocks):
             full_iterator.append(itertools.product([block], [0]))
         else:
-            block_depth = len(final_block)
+            block_depth = len(list(final_block.children()))
             full_iterator.append(itertools.product([block], reversed(range(block_depth))))
 
     full_iterator = itertools.chain.from_iterable(full_iterator)
