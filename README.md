@@ -1,9 +1,11 @@
 # TL_blogpost
 Transfer Learning with the OPU - Blogpost code (**Put the blogpost link somewhere**)
+
 ## How to install
 
-We advise creating a `virtualenv` before running these commands. you can create one with `python3 -m venv <venv_name>`. 
-Activate it with source `<path_to_venv>/bin/activate`  before proceeding. We used `python 3.5` for all the simulations.
+We advise creating a `virtualenv` before running these commands. You can create one with `python3 -m venv <venv_name>`. 
+Activate it with source `<path_to_venv>/bin/activate`  before proceeding. We used `python 3.5` and `pytorch 1.2` 
+for all the simulations.
 
 - Clone the repository and then do `pip install <path_to_repo>`.
 
@@ -47,3 +49,8 @@ on a GPU which supported `int8` (RTX 2080) and then moved them to the OPU machin
 `int8` just drop the `-features_path` argument.
 
 If you want to just extract the dataset features you can use the `tensorrt_extract_features.py`.
+
+## Hardware specifics
+
+All the simulations have been run on a Tesla P100 GPU with 16GB memory and a Intel(R) Xeon(R) Gold 6128 CPU @ 3.40GHz with 12 cores. 
+For the int8 simulations we use an RTX 2080 with 12GB memory.
