@@ -169,9 +169,9 @@ def main(args):
     print("model size = {0:3.2f} MB".format(model_size_tot))
 
     if args.optimizer_name == 'Adam':
-        optimizer = torch.optim.Adam(model.classifier.parameters(), lr=args.lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     elif args.optimizer_name == 'SGD':
-        optimizer = torch.optim.SGD(model.classifier.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
     else:
         print('Optimizer not recognized.')
 
