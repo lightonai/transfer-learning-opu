@@ -1,5 +1,6 @@
 # TL_blogpost
-Transfer Learning with the OPU - Blogpost code (**Put the blogpost link somewhere**)
+Transfer Learning with the OPU - Blogpost code 
+Original blogpost is available at [this link](https://medium.com/@LightOnIO/au-revoir-backprop-bonjour-optical-transfer-learning-5f5ae18e4719)
 
 ## How to install
 
