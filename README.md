@@ -48,7 +48,14 @@ Substitute the `save_path` with your desired destination folder. In the above ex
 on a GPU which supported `int8` (RTX 2080) and then moved them to the OPU machine. If your machine already supports 
 `int8` just drop the `-features_path` argument.
 
-If you want to just extract the dataset features you can use the `tensorrt_extract_features.py`.
+If you want to just extract the dataset features you can use the `tensorrt_extract_features.py`. Example call:
+
+```
+python3 tensorrt_extract_features.py densenet169 32 -block 10 -layer 12 
+-dtype_train int8 -dtype_inf int8 -dataset_path ~/datasets/animals10/
+```
+
+Obviously change the dataset path with the correct one on your machine.
 
 ## Hardware specifics
 
