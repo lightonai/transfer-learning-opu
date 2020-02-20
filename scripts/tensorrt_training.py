@@ -175,7 +175,7 @@ def main(args):
     alphas = np.concatenate([alpha_mant * 10 ** i for i in range(args.alpha_exp_min, args.alpha_exp_max + 1)])
 
     if args.save_path is not None:
-        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU),
+        base_path = os.path.join(args.save_path, '{}_{}'.format(args.model_name, args.OPU),
                                  'OPU_{}_{}_{}'.format(args.n_components, args.model_options, args.dtype_train))
 
         pathlib.Path(os.path.join(base_path, 'train')).mkdir(parents=True, exist_ok=True)

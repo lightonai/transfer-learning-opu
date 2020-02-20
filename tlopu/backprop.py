@@ -4,19 +4,23 @@ import torch
 
 def train_model(model, train_loader, criterion, optimizer, device='cpu'):
     """
-    Trains the given model for one epoch on the given dataset
+    Trains the given model for one epoch on the given dataset.
+
+    Parameters
+    ----------
+
     model: Pytorch model,
         neural net model.
     train_loader: torch Dataloader,
         contains the training images.
     criterion: torch.nn.modules.loss,
         criterion for the determination of the loss.
-    acc_toll: float,
-        tollerance on the train accuracy. If the difference between two consecutive epochs goes below this,
-        stop the training.
+    optimizer: torch.optim,
+        optimizer for the training.
     device: string,
         device to use for the computation. Choose between 'cpu' and 'gpu:x', where
         x is the GPU number. Defaults to 'cpu'.
+
     Returns
     -------
     model: torch model,
@@ -59,7 +63,7 @@ def train_model(model, train_loader, criterion, optimizer, device='cpu'):
     return model, epoch_loss, epoch_acc
 
 
-def evaluate_model(model, test_loader, criterion, dtype='f32', device='cpu'):
+def evaluate_model(model, test_loader, criterion, dtype='float32', device='cpu'):
     """
 
     model: Pytorch model,
@@ -68,6 +72,8 @@ def evaluate_model(model, test_loader, criterion, dtype='f32', device='cpu'):
         contains the test images.
     criterion: torch.nn.modules.loss,
         criterion for the determination of the loss. Defaults to CrossEntropyLoss.
+    dtype: str,
+        dtype for the inference. Choose between float32 and float16.
     device: string,
         device to use for the computation. Choose between 'cpu' and 'gpu:x', where
         x is the GPU number. Defaults to 'cpu'.
@@ -82,8 +88,6 @@ def evaluate_model(model, test_loader, criterion, dtype='f32', device='cpu'):
         inference time, including the data loading.
     inference_conv_time: float,
         inference time for the convolutional part only.
-    inference_linear_time: float,
-        inference time for the linear part only.
     """
     tot_test_images = len(test_loader.dataset)
 
@@ -91,7 +95,7 @@ def evaluate_model(model, test_loader, criterion, dtype='f32', device='cpu'):
     running_corrects = 0
     inference_conv_time = 0
 
-    if dtype == 'f16':
+    if dtype == 'float16':
         model.half()
 
     model.to(torch.device(device)).eval()
@@ -105,7 +109,7 @@ def evaluate_model(model, test_loader, criterion, dtype='f32', device='cpu'):
             images = images.to(torch.device(device))
             labels = labels.to(torch.device(device))
 
-            if dtype == 'f16':
+            if dtype == 'float16':
                 images = images.half()
 
             torch.cuda.synchronize()

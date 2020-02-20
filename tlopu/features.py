@@ -9,8 +9,7 @@ from lightonopu.opu import OPU
 
 def fast_conv_features(loader, model, out_shape, encode_type='positive', dtype='float32', device='cpu'):
     """
-    Computes the convolutional features of the images in the loader, and optionally encodes them on GPU
-    based on their sign.
+    Computes the convolutional features of the images in the loader, and optionally encodes them on GPU.
 
     Parameters
     ----------
@@ -216,9 +215,9 @@ def get_random_features(X, n_components):
     with OPU(n_components=n_components) as opu:
         since = time()
         random_features = opu.transform1d(X)
-        train_time = time() - since
+        proj_time = time() - since
 
-    return train_time, random_features
+    return proj_time, random_features
 
 
 def decoding(random_features, exp_bits=1, sign_bit=False, mantissa_bits=0, decode_type='mixing'):
@@ -242,7 +241,7 @@ def decoding(random_features, exp_bits=1, sign_bit=False, mantissa_bits=0, decod
 
     Returns
     -------
-    decoding_time: float,
+    decode_time: float,
         encoding time.
     dec_train_random_features: numpy 2d array,
         decoded random features.
@@ -256,15 +255,15 @@ def decoding(random_features, exp_bits=1, sign_bit=False, mantissa_bits=0, decod
         decoder = MixingBitPlanDecoder(n_bits=decode_bits)
         since = time()
         dec_random_features = decoder.transform(random_features)
-        train_decode_time = time() - since
+        decode_time = time() - since
 
     else:
         since = time()
         dec_random_features = random_features.astype('float32')
-        train_decode_time = time() - since
+        decode_time = time() - since
 
 
-    return train_decode_time, dec_random_features
+    return decode_time, dec_random_features
 
 
 def dummy_predict_GPU(clf, test_random_features, device='cpu', dtype="float32"):
@@ -280,9 +279,13 @@ def dummy_predict_GPU(clf, test_random_features, device='cpu', dtype="float32"):
     device: string,
         device to use for the computation. Choose between 'cpu' and 'gpu:x', where
         x is GPU number. Defaults to 'cpu'.
+    dtype: string,
+        Inference datatype. Choose between 'float32' (default) and 'float16'.
 
     Returns
     -------
+    decode_time: float,
+        time for the decoding on GPU.
     predict_time: float,
         prediction time.
     """

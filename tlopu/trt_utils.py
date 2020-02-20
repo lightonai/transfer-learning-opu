@@ -26,9 +26,6 @@ def trt_conv_features(loader, engine, out_shape):
     out_shape: int,
         flattened shape of the convolutional features associated to the images. For example, the full vgg16 has 25088
         features per image.
-    encoding_threshold: float or None,
-        threshold for a 1bit float32-style encoding (abs(value)>threshold --> 1; else 0).
-        If None, no encoding is performed. Done on CPU.
 
     Returns
     -------
@@ -37,8 +34,10 @@ def trt_conv_features(loader, engine, out_shape):
         They are already moved to CPU.
     labels: list of int,
         labels associated to each image.
-    conv_time: float,
+    full_conv_time: float,
         time required to compute the convolutional features. It includes the data loading.
+    conv_only_time: float,
+        time required to compute the convolutional features without the dataloading.
 
     """
     conv_only_time = 0
@@ -106,7 +105,6 @@ def build_engine_onnx(model_file, max_batch_size, max_workspace_size=1, dtype='f
     builder.build_cuda_engine(network): tensorrt engine,
         engine optimized for the given batch size and the current GPU.
 
-    TODO: Add an option to choose which GPU to pick if there are 2 or more.
     """
 
     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
@@ -229,12 +227,11 @@ def allocate_buffers(engine):
     Returns
     -------
 
-    inputs: <fill>
-    outputs: <fill>
-    bindings: <fill>
-    stream: <fill>
+    inputs: memory allocation address for the input
+    outputs: memory allocation address for the output
+    bindings: memory bindings
+    stream: cuda stream
 
-    TODO: fill the blanks for the output. Also, the implementation in version 5.1.2.2 might be more compact
     """
 
     stream = cuda.Stream()
@@ -276,17 +273,17 @@ def do_inference(context, bindings, inputs, outputs, stream, batch_size=1):
     ----------
 
     context: tensorrt context,
-    bindings: <fill>
-    inputs: <fill> (defined in alloacate_buffers)
-    outputs:<fill> (defined in alloacate_buffers)
-    stream:<fill> (defined in alloacate_buffers)
+    bindings: memory bindings
+    inputs: memory allocation address for the input
+    outputs: memory allocation address for the output
+    stream: cuda stream
     batch_size: int,
         batch size to use for the computations. Defults to 1.
         NOTE: If using int8 dtype, the batch size CAN be different than the calibration one.
 
     Returns
     -------
-    outputs.host: numpy array (CHECK),
+    outputs.host: numpy array,
         Result of the computation. Note that it is a flattened array, so it should be reshaped to (32,-1) or whatever
         is the desired shape.
 

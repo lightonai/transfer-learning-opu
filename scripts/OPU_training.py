@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import argparse
 from argparse import RawTextHelpFormatter
 from time import time
@@ -153,7 +154,7 @@ def main(args):
     alphas = np.concatenate([alpha_mant * 10 ** i for i in range(args.alpha_exp_min, args.alpha_exp_max + 1)])
 
     if args.save_path is not None:
-        base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU),
+        base_path = os.path.join(args.save_path, '{}_{}'.format(args.model_name, args.OPU),
                                  'OPU_{}_{}_{}'.format(args.n_components, args.model_options, args.model_dtype))
 
         pathlib.Path(os.path.join(base_path, 'train')).mkdir(parents=True, exist_ok=True)
@@ -237,7 +238,8 @@ def main(args):
 
         total_inference_time = test_conv_time + test_encode_time + test_proj_time + test_decode_time + predict_time
 
-        ridge_size = np.prod(clf.coef_.shape) * int(str(args.model_dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+        n_bits = int(re.findall("\d+", args.model_dtype)[0])
+        ridge_size = np.prod(clf.coef_.shape) * n_bits / (8 * 2 ** 10 * 2 ** 10)
 
         train_data = [args.n_components, args.block, args.layer, args.model_dtype, train_conv_time, new_output_size,
                       train_encode_time, train_proj_time, train_decode_time, alpha, fit_time, total_train_time,

@@ -130,7 +130,7 @@ def save_data(args, final_data):
 
     """
 
-    base_path = os.path.join(args.save_path, '{}_{}_brutal'.format(args.model_name, args.OPU), "backprop")
+    base_path = os.path.join(args.save_path, '{}_{}'.format(args.model_name, args.OPU), "backprop")
 
     pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
 

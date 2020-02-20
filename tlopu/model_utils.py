@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import itertools
 
 import numpy as np
@@ -42,12 +43,12 @@ def pick_model(model_name, model_options='full', pretrained=True, device='cpu', 
     pretrained: boolean,
         if True, loads the pretrained weights of the model. Defaults to True.
 
+    device: string,
+        device for the gradient computation. Choose between "cpu" and "gpu:x", where x is the number of the GPU device.
+
     input_shape: tuple of int,
         shape of the input samples fed to the network in the form (batch_size, channels, heightm width).
         Defaults to (1,3,224,224).
-
-    device: string,
-        device for the gradient computation. Choose between "cpu" and "gpu:x", where x is the number of the GPU device.
 
     linear_out: int,
         number of classes of the dataset, needed in order to define the linear layer output.
@@ -124,6 +125,10 @@ def get_output_size(model, input_shape=(1, 3, 224, 224), device="cpu", dtype='fl
     input_shape: tuple of int,
         shape of the images in input to the model in the form (batch_size, channels, height, width).
         Defaults to (1, 3, 224, 224).
+    device: string,
+        device for the gradient computation. Choose between "cpu" and "gpu:x", where x is the number of the GPU device.
+    dtype: string,
+        datatype for the model. Choose between 'float32' and 'float16'. Defaults to 'float32'.
 
     Return
     ------
@@ -263,13 +268,12 @@ def get_model_size(model):
 
     Returns
     -------
-    model_size = float,
+    model_size: float,
         size of the model in MB.
-    total_weights = int,
+    total_weights: int,
         number of weights in the model.
-
-    NOTE: the number of bits is obtained from the last two characters of the dtype (ex: 'float32' -> 32 bits).
-        As such, it will not work for bits lower than 10 (ex: 'int8' -> t8)
+    tot_linear_size: float,
+        size of the linear part of the model.
     """
 
     tot_conv_weights, tot_batchnorm_weights, tot_linear_weights = 0, 0, 0
@@ -280,17 +284,20 @@ def get_model_size(model):
         if isinstance(layer, torch.nn.Conv2d):
             layer_weights = np.prod(layer.weight.data.shape[:])
             tot_conv_weights += layer_weights
-            tot_conv_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+            n_bits = int(re.findall("\d+", str(layer.weight.data.dtype))[0])
+            tot_conv_size += layer_weights * n_bits / (8 * 2 ** 10 * 2 ** 10)
 
         elif isinstance(layer, torch.nn.BatchNorm2d):
             layer_weights = np.prod(layer.weight.data.shape[:])
             tot_batchnorm_weights += layer_weights
-            tot_batchnorm_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+            n_bits = int(re.findall("\d+", str(layer.weight.data.dtype))[0])
+            tot_batchnorm_size += layer_weights * n_bits / (8 * 2 ** 10 * 2 ** 10)
 
         elif isinstance(layer, torch.nn.Linear):
             layer_weights = np.prod(layer.weight.data.shape[:])
             tot_linear_weights += layer_weights
-            tot_linear_size += layer_weights * int(str(layer.weight.data.dtype)[-2:]) / (8 * 2 ** 10 * 2 ** 10)
+            n_bits = int(re.findall("\d+", str(layer.weight.data.dtype))[0])
+            tot_linear_size += layer_weights * n_bits / (8 * 2 ** 10 * 2 ** 10)
 
     total_weights = tot_conv_weights + tot_batchnorm_weights + tot_linear_weights
     model_size = tot_conv_size + tot_batchnorm_size + tot_linear_size
@@ -306,8 +313,12 @@ def save_model(model, batch_size, savepath, channels=3):
     ----------
     model: Pytorch model,
         neural network.
-    model_name:
-    name of the model. For file naming
+    batch_size: int,
+        batch size of the loaders.
+    savepath: str,
+        path to the save folder.
+    channels: int,
+        number of color channels. Defaults to 3.
 
     Returns
     -------
