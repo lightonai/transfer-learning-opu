@@ -1,6 +1,12 @@
 # Au Revoir Backprop! Bonjour Optical Transfer Learning!
 Code used to produce data for our blog post [Au Revoir Backprop! Bonjour Optical Transfer Learning!](https://medium.com/@LightOnIO/au-revoir-backprop-bonjour-optical-transfer-learning-5f5ae18e4719)
 
+## Access to Optical Processing Units
+
+To request access to LightOn Cloud and try our photonic co-processor, please visit: https://cloud.lighton.ai/
+
+For researchers, we also have a LightOn Cloud for Research program, please visit https://cloud.lighton.ai/lighton-research/ for more information.
+
 ## How to install
 
 We advise creating a `virtualenv` before running these commands. You can create one with `python3 -m venv <venv_name>`. 
