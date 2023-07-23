@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/LucaT1995/TL_blogpost",
     packages=setuptools.find_packages(),
-    install_requires=["numpy==1.17.5", "scikit-learn==0.22.1", "scipy==1.4.1", "torch==1.2", "torchvision==0.4",
+    install_requires=["numpy==1.17.5", "scikit-learn==0.22.1", "scipy==1.4.1", "torch==1.13.1", "torchvision==0.4",
                       "pandas==0.24.2", "tqdm==4.41.1", "matplotlib==3.0.2", "Pillow==8.1.1", "lightonml==1.0.2",
                       "lightonopu==1.0.4"],
     classifiers=[
